@@ -1,5 +1,3 @@
-import socket
-
 import F1_informationGathering
 import F2_threatModeling
 import F3_vulnerabilityAnalysis
@@ -18,7 +16,7 @@ def main():
     
     if opcion == '1':
         # dominio = input("Introduce el dominio para buscar información: ")
-        F1_informationGathering.ejecutar_theharvester('www.zoonsuite.com')
+        F1_informationGathering.ejecutar_theharvester('zoonsuite.com')
     elif opcion == '2':
         F2_threatModeling.run()
     elif opcion == '3':
