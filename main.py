@@ -12,7 +12,7 @@ def main():
         if opcion == '1':
             F1_informationGathering.main()
         elif opcion == '2':
-            F2_threatModeling
+            F2_threatModeling.main()
         elif opcion == '3':
             F3_vulnerabilityAnalysis
         elif opcion == '4':

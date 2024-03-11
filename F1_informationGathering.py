@@ -29,18 +29,6 @@ def ejecutar_theharvester():
         print("Error al ejecutar theHarvester: ", e)
         return str(e)
             
-def es_ip_valida(ip):
-    partes = ip.split(".")
-    if len(partes) != 4:
-        return False
-    for parte in partes:
-        if not parte.isdigit():
-            return False
-        i = int(parte)
-        if i < 0 or i > 255:
-            return False
-    return True
-
 # Función para solicitar una entrada numérica al usuarios
 def solicitar_entrada_numerica(mensaje, opciones_validas):
     while True:
