@@ -14,7 +14,7 @@ def main():
         elif opcion == '2':
             F2_threatModeling.main()
         elif opcion == '3':
-            F3_vulnerabilityAnalysis
+            F3_vulnerabilityAnalysis.main()
         elif opcion == '4':
             F4_exploitation
         elif opcion == '5':
