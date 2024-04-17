@@ -1,14 +1,11 @@
 import subprocess
 
-import shodan
-
 
 # Función para recolectar información con theHarvester
 def ejecutar_theharvester():
     try:
         dominio = input("Introduce el dominio para buscar información (ejemplo.com): ")
-        # Pregunta al usuario qué buscador quiere usar
-        buscador = input("Por favor, introduce el buscador que quieres usar (bing,yahoo,brave,github-code.): ")
+        buscador = input("Por favor, introduce el buscador que quieres usar (bing, yahoo, brave, github-code): ")
 
         # Pregunta al usuario cuántos resultados quiere buscar
         while True:
@@ -18,26 +15,23 @@ def ejecutar_theharvester():
             else:
                 print("Por favor, introduce un número válido.")
 
-        # En Kali Linux, puedes ejecutar theHarvester directamente
+        # Construir el comando para ejecutar theHarvester
         comando = f"theHarvester -d {dominio} -l {limite} -b {buscador}"
         
-        # Ejecutar el comando
-        resultado = subprocess.check_output(comando, shell=True, text=True)
-        # Imprimir el resultado y restablecer el color de la consola
-        print('\n' + resultado + '\033[0m')
+        # Ejecutar el comando y capturar la salida
+        resultado = subprocess.run(comando, shell=True, text=True, capture_output=True)
+
+        # Guardar el resultado en un archivo y mostrarlo en la consola
+        nombre_archivo = f"TheHarvesterResults.txt"
+        with open(nombre_archivo, 'w') as archivo:
+            archivo.write(resultado.stdout)
+
+        # Imprimir el resultado en la consola
+        print('\n' + resultado.stdout + '\033[0m')
+
     except subprocess.CalledProcessError as e:
         print("Error al ejecutar theHarvester: ", e)
         return str(e)
-            
-# Función para solicitar una entrada numérica al usuarios
-def solicitar_entrada_numerica(mensaje, opciones_validas):
-    while True:
-        respuesta = input(mensaje)
-        if respuesta.isdigit() and int(respuesta) in opciones_validas:
-            return int(respuesta)
-        else:
-            print(f"\nPor favor, introduce un número válido. Opciones válidas: {opciones_validas}\n")
-
 
 # Función principal
 def main():

@@ -1,0 +1,49 @@
+Read proxies.yaml from /etc/theHarvester/proxies.yaml
+*******************************************************************
+*  _   _                                            _             *
+* | |_| |__   ___    /\  /\__ _ _ ____   _____  ___| |_ ___ _ __  *
+* | __|  _ \ / _ \  / /_/ / _` | '__\ \ / / _ \/ __| __/ _ \ '__| *
+* | |_| | | |  __/ / __  / (_| | |   \ V /  __/\__ \ ||  __/ |    *
+*  \__|_| |_|\___| \/ /_/ \__,_|_|    \_/ \___||___/\__\___|_|    *
+*                                                                 *
+* theHarvester 4.5.1                                              *
+* Coded by Christian Martorella                                   *
+* Edge-Security Research                                          *
+* cmartorella@edge-security.com                                   *
+*                                                                 *
+*******************************************************************
+
+[*] Target: ua.es
+
+[94m[*] Searching Yahoo.
+
+[*] No IPs found.
+
+[*] Emails found: 2
+----------------------
+dfae@ua.es
+info@csidiomas.ua.es
+
+[*] Hosts found: 21
+---------------------
+autentica.cpd.ua.es
+ciencias.ua.es
+csidiomas.ua.es
+cvnet.cpd.ua.es
+derecho.ua.es
+economicas.ua.es
+educacio.ua.es
+eps.ua.es
+fae.ua.es
+fcsalud.ua.es
+gasterra.ua.es
+gcloud.ua.es
+ice.ua.es
+is.ua.es
+lletres.ua.es
+pca.ua.es
+s.ua.es
+seuelectronica.ua.es
+si.ua.es
+web.csidiomas.ua.es
+web.ua.es

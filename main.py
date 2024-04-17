@@ -1,7 +1,7 @@
 import F1_informationGathering
 import F2_threatModeling
-import F3_vulnerabilityAnalysis
-import F4_exploitation
+import F6_Documentation
+import F345_vulnerabilityAnalysis_Explotation_PostExplotation
 import menu
 
 
@@ -14,9 +14,9 @@ def main():
         elif opcion == '2':
             F2_threatModeling.main()
         elif opcion == '3':
-            F3_vulnerabilityAnalysis.main()
+            F345_vulnerabilityAnalysis_Explotation_PostExplotation.main()
         elif opcion == '4':
-            F4_exploitation
+            F6_Documentation.main()
         elif opcion == '5':
             print("Pentesting cancelado.")
             exit()
