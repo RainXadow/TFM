@@ -13,9 +13,9 @@ Read proxies.yaml from /etc/theHarvester/proxies.yaml
 *                                                                 *
 *******************************************************************
 
-[*] Target: ua.es
+[*] Target: ua.es 
 
-[94m[*] Searching Yahoo.
+[94m[*] Searching Yahoo. 
 
 [*] No IPs found.
 
