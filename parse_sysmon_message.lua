@@ -1,100 +1,80 @@
-function clean_value(str)
-    if str then
-        str = str:gsub("^\t+", "")
-        str = str:gsub("\r", "")  
-        str = str:gsub("\n", "")  
-        str = str:gsub("^%s+", "")
-        str = str:gsub("%s+$", "")
-        if str == "-" then return nil end
-    end
-    return str
-end
-
 function parse_message_security(tag, timestamp, record)
-    -- Solo procesar si el Tag es de seguridad y si el campo 'Message' existe
-    if not (tag == "winevtlog.security" and record.Message) then
-        return 2, timestamp, record -- No coincidir, mantener el registro original
-    end
+  local message = record["Message"]
+  local result = {}
 
-    local message = record.Message
+  if not message or type(message) ~= "string" then
+    return 2, timestamp, record
+  end
+
+  message = message .. "\r\n\r\n"
+
+  for block in message:gmatch("(.-)\r\n\r\n") do
     local lines = {}
-    for line in message:gmatch("[^\r\n]+") do
-        table.insert(lines, line)
+    for line in block:gmatch("([^\r\n]+)") do
+      table.insert(lines, line)
     end
 
-    local parsed_data = {}
-    local current_path = "Message" -- Prefijo base para los campos
-    local path_stack = {}         -- Para manejar jerarquías anidadas
-    local current_array_key = nil -- Para manejar arrays de privilegios
-
+    local current_group = nil
+    local current_array_key = nil
     local i = 1
+
     while i <= #lines do
-        local line = lines[i]
-        local trimmed_line = clean_value(line)
+      local line = lines[i]
+      local trimmed = line:match("^%s*(.-)%s*$")
 
-        if trimmed_line == "" or trimmed_line:match("This event is generated") then
+      if trimmed:match("^[^:\t]+:$") then
+        current_group = trimmed:match("^(.-):$")
+        current_array_key = nil
+
+      elseif line:match("^\t+[^:\t]+:%s*%S") then
+        local key, val = line:match("^\t+([^:]+):%s*(.+)$")
+        if key and val then
+          local full_key = current_group and (current_group .. "." .. key) or key
+          result[full_key] = val
+        end
+
+      elseif line:match("^[^:\t]+:%s*%S") then
+        local key, val = line:match("^([^:]+):%s*(.+)$")
+        if key and val then
+          local full_key = key
+          result[full_key] = { val }
+          current_array_key = full_key
+
+          i = i + 1
+          while i <= #lines do
+            local next_line = lines[i]
+            local trimmed_next = next_line:match("^%s*(.-)%s*$")
+
+            if trimmed_next == "" or trimmed_next:match("^[^:\t]+:") or trimmed_next:match("^[^:\t]+:$") then
+              i = i - 1
+              break
+            end
+
+            if next_line:match("^\t") then
+              table.insert(result[full_key], trimmed_next)
+            end
+
             i = i + 1
-            goto continue
+          end
         end
+        current_array_key = nil
+      end
 
-        local key_value_match = trimmed_line:match("^([^\t\r\n:]+):\t*(.*)$")
-
-        if key_value_match then
-            local key = clean_value(key_value_match[1])
-            local value = clean_value(key_value_match[2])
-
-            if value == "" or (i + 1 <= #lines and lines[i+1]:match("^\t\t%s*[^\t\s]")) then
-                
-                while #path_stack > 0 do
-                    local last_indent_level = path_stack[#path_stack].indent_level
-                    local current_indent_level = line:match("^\t*")
-                    if #current_indent_level < last_indent_level then
-                        table.remove(path_stack)
-                    else
-                        break
-                    end
-                end
-
-                table.insert(path_stack, {key = key, indent_level = #line:match("^\t*")})
-                current_path = "Message"
-                for _, p_item in ipairs(path_stack) do
-                    current_path = current_path .. "." .. p_item.key
-                end
-                current_array_key = nil 
-
-            else
-                local full_key = current_path .. "." .. key
-                parsed_data[full_key] = value
-                current_array_key = nil 
-            end
-        elseif current_array_key and trimmed_line ~= "" then
-            local value_element = clean_value(trimmed_line)
-            if not parsed_data[current_array_key] then
-                parsed_data[current_array_key] = {}
-            end
-            table.insert(parsed_data[current_array_key], value_element)
-
-        elseif trimmed_line:match("^Privileges:$") then
-            local key = "Privileges"
-            current_array_key = current_path .. "." .. key -- Establecer el modo array
-            parsed_data[current_array_key] = {} -- Inicializar como una tabla para el array
-            i = i + 1 -- Mover al siguiente elemento
-            goto continue
-
-        else
-        end
-
-        i = i + 1
-        ::continue::
+      i = i + 1
     end
+  end
 
-    record.Message = nil
-
-    for k, v in pairs(parsed_data) do
-        record[k] = v
+  -- Unificar arrays en strings con saltos de línea
+  for k, v in pairs(result) do
+    if type(v) == "table" then
+      result[k] = table.concat(v, "\n")
     end
+  end
 
-    return 1, timestamp, record
+  -- Guardar en el registro como messageJson
+  record["messageJson"] = result
+
+  return 2, timestamp, record
 end
 
 
@@ -124,3 +104,31 @@ function parse_message(tag, timestamp, record)
 
     return 2, timestamp, record
 end
+
+
+-- local example_security = "An account failed to log on.\r\n\r\nSubject:\r\n\tSecurity ID:\t\tS-1-5-21-3208247626-2009448666-1580989171-500\r\n\tAccount Name:\t\tAdministrator\r\n\tAccount Domain:\t\tWIN-FSE1B39DNO3\r\n\tLogon ID:\t\t0x54857\r\n\r\nLogon Type:\t\t\t2\r\n\r\nAccount For Which Logon Failed:\r\n\tSecurity ID:\t\tS-1-0-0\r\n\tAccount Name:\t\tAdministrator\r\n\tAccount Domain:\t\tWIN-FSE1B39DNO3\r\n\r\nFailure Information:\r\n\tFailure Reason:\t\tUnknown user name or bad password.\r\n\tStatus:\t\t\t0xC000006D\r\n\tSub Status:\t\t0xC000006A\r\n\r\nProcess Information:\r\n\tCaller Process ID:\t0x21f8\r\n\tCaller Process Name:\tC:\\Windows\\System32\\svchost.exe\r\n\r\nNetwork Information:\r\n\tWorkstation Name:\tWIN-FSE1B39DNO3\r\n\tSource Network Address:\t::1\r\n\tSource Port:\t\t0\r\n\r\nDetailed Authentication Information:\r\n\tLogon Process:\t\tseclogo\r\n\tAuthentication Package:\tNegotiate\r\n\tTransited Services:\t-\r\n\tPackage Name (NTLM only):\t-\r\n\tKey Length:\t\t0\r\n\r\nThis event is generated when a logon request fails. It is generated on the computer where access was attempted.\r\n\r\nThe Subject fields indicate the account on the local system which requested the logon. This is most commonly a service such as the Server service, or a local process such as Winlogon.exe or Services.exe.\r\n\r\nThe Logon Type field indicates the kind of logon that was requested. The most common types are 2 (interactive) and 3 (network).\r\n\r\nThe Process Information fields indicate which account and process on the system requested the logon.\r\n\r\nThe Network Information fields indicate where a remote logon request originated. Workstation name is not always available and may be left blank in some cases.\r\n\r\nThe authentication information fields provide detailed information about this specific logon request.\r\n\t- Transited services indicate which intermediate services have participated in this logon request.\r\n\t- Package name indicates which sub-protocol was used among the NTLM protocols.\r\n\t- Key length indicates the length of the generated session key. This will be 0 if no session key was requested."
+
+-- print("---- parse_message_security ----")
+-- local _, _, parsed_record_security = parse_message_security("tag", os.time(), { Message = example_security })
+-- for k, v in pairs(parsed_record_security["messageJson"]) do
+--     print(k .. " = " .. v)
+-- end
+
+-- -- Simulación de evento SYSMON
+-- print("\n---- parse_message (Sysmon) ----")
+-- local example_sysmon = [[
+-- Process Create:
+-- RuleName: -
+-- UtcTime: 2023-06-16 20:41:37.815
+-- ProcessGuid: {abc123}
+-- ProcessId: 1337
+-- Image: C:\Windows\System32\cmd.exe
+-- CommandLine: cmd.exe /c whoami
+-- CurrentDirectory: C:\Users\user\
+-- User: SEVENKINGDOMS\user
+-- ]]
+
+-- local _, _, parsed_record_sysmon = parse_message("tag", os.time(), { Message = example_sysmon })
+-- for k, v in pairs(parsed_record_sysmon["messageJson"]) do
+--     print(k .. " = " .. v)
+-- end
