@@ -1,9 +1,17 @@
 function parse_message_security(tag, timestamp, record)
   local message = record["Message"]
-  local result = {}
+  local result = {} 
+  local simple_fields = {}
 
   if not message or type(message) ~= "string" then
     return 2, timestamp, record
+  end
+
+  local function normalize_key(key)
+    if key then
+      key = key:gsub(" ", "_")
+    end
+    return key
   end
 
   message = message .. "\r\n\r\n"
@@ -24,21 +32,24 @@ function parse_message_security(tag, timestamp, record)
 
       if trimmed:match("^[^:\t]+:$") then
         current_group = trimmed:match("^(.-):$")
+        current_group = normalize_key(current_group)
         current_array_key = nil
 
       elseif line:match("^\t+[^:\t]+:%s*%S") then
         local key, val = line:match("^\t+([^:]+):%s*(.+)$")
         if key and val then
-          local full_key = current_group and (current_group .. "." .. key) or key
-          result[full_key] = val
+          key = normalize_key(key)
+          if current_group then
+            result[current_group] = result[current_group] or {}
+            result[current_group][key] = val
+          end
         end
 
       elseif line:match("^[^:\t]+:%s*%S") then
         local key, val = line:match("^([^:]+):%s*(.+)$")
         if key and val then
-          local full_key = key
-          result[full_key] = { val }
-          current_array_key = full_key
+          key = normalize_key(key)
+          local arr = { val }
 
           i = i + 1
           while i <= #lines do
@@ -51,31 +62,54 @@ function parse_message_security(tag, timestamp, record)
             end
 
             if next_line:match("^\t") then
-              table.insert(result[full_key], trimmed_next)
+              table.insert(arr, trimmed_next)
             end
 
             i = i + 1
           end
+
+          if #arr == 1 then
+            simple_fields[key] = arr[1]
+          else
+            result[key] = arr
+          end
         end
         current_array_key = nil
+      else
       end
 
       i = i + 1
     end
   end
 
-  -- Unificar arrays en strings con saltos de línea
   for k, v in pairs(result) do
     if type(v) == "table" then
-      result[k] = table.concat(v, "\n")
+      local is_array = true
+      local count = 0
+      for kk, _ in pairs(v) do
+        if type(kk) ~= "number" then
+          is_array = false
+          break
+        else
+          count = count + 1
+        end
+      end
+      if is_array and count > 0 then
+        result[k] = table.concat(v, "\n")
+      end
     end
   end
 
-  -- Guardar en el registro como messageJson
+  for k, v in pairs(simple_fields) do
+    record[k] = v
+  end
+
   record["messageJson"] = result
 
   return 2, timestamp, record
 end
+
+
 
 
 function parse_message(tag, timestamp, record)
