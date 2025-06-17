@@ -1,16 +1,122 @@
+function clean_value(str)
+    if str then
+        str = str:gsub("^\t+", "")
+        str = str:gsub("\r", "")  
+        str = str:gsub("\n", "")  
+        str = str:gsub("^%s+", "")
+        str = str:gsub("%s+$", "")
+        if str == "-" then return nil end
+    end
+    return str
+end
+
+function parse_message_security(tag, timestamp, record)
+    -- Solo procesar si el Tag es de seguridad y si el campo 'Message' existe
+    if not (tag == "winevtlog.security" and record.Message) then
+        return 2, timestamp, record -- No coincidir, mantener el registro original
+    end
+
+    local message = record.Message
+    local lines = {}
+    for line in message:gmatch("[^\r\n]+") do
+        table.insert(lines, line)
+    end
+
+    local parsed_data = {}
+    local current_path = "Message" -- Prefijo base para los campos
+    local path_stack = {}         -- Para manejar jerarquías anidadas
+    local current_array_key = nil -- Para manejar arrays de privilegios
+
+    local i = 1
+    while i <= #lines do
+        local line = lines[i]
+        local trimmed_line = clean_value(line)
+
+        if trimmed_line == "" or trimmed_line:match("This event is generated") then
+            i = i + 1
+            goto continue
+        end
+
+        local key_value_match = trimmed_line:match("^([^\t\r\n:]+):\t*(.*)$")
+
+        if key_value_match then
+            local key = clean_value(key_value_match[1])
+            local value = clean_value(key_value_match[2])
+
+            if value == "" or (i + 1 <= #lines and lines[i+1]:match("^\t\t%s*[^\t\s]")) then
+                
+                while #path_stack > 0 do
+                    local last_indent_level = path_stack[#path_stack].indent_level
+                    local current_indent_level = line:match("^\t*")
+                    if #current_indent_level < last_indent_level then
+                        table.remove(path_stack)
+                    else
+                        break
+                    end
+                end
+
+                table.insert(path_stack, {key = key, indent_level = #line:match("^\t*")})
+                current_path = "Message"
+                for _, p_item in ipairs(path_stack) do
+                    current_path = current_path .. "." .. p_item.key
+                end
+                current_array_key = nil 
+
+            else
+                local full_key = current_path .. "." .. key
+                parsed_data[full_key] = value
+                current_array_key = nil 
+            end
+        elseif current_array_key and trimmed_line ~= "" then
+            local value_element = clean_value(trimmed_line)
+            if not parsed_data[current_array_key] then
+                parsed_data[current_array_key] = {}
+            end
+            table.insert(parsed_data[current_array_key], value_element)
+
+        elseif trimmed_line:match("^Privileges:$") then
+            local key = "Privileges"
+            current_array_key = current_path .. "." .. key -- Establecer el modo array
+            parsed_data[current_array_key] = {} -- Inicializar como una tabla para el array
+            i = i + 1 -- Mover al siguiente elemento
+            goto continue
+
+        else
+        end
+
+        i = i + 1
+        ::continue::
+    end
+
+    record.Message = nil
+
+    for k, v in pairs(parsed_data) do
+        record[k] = v
+    end
+
+    return 1, timestamp, record
+end
+
+
 function parse_message(tag, timestamp, record)
     local message_field = record["Message"]
 
     if message_field and type(message_field) == "string" then
         local parsed_data = {}
-        for line in message_field:gmatch("([^\r\n]+)") do
-            local key, value = line:match("([^:]+):%s*(.*)")
-            
-            if key and value then
-                key = key:match("^%s*(.-)%s*$")
-                value = value:match("^%s*(.-)%s*$")
+        local is_first_line = true
 
-                parsed_data[key] = value
+        for line in message_field:gmatch("([^\r\n]+)") do
+            if is_first_line then
+                is_first_line = false
+            else
+                local key, value = line:match("([^:]+):%s*(.*)")
+                
+                if key and value then
+                    key = key:match("^%s*(.-)%s*$")
+                    value = value:match("^%s*(.-)%s*$")
+
+                    parsed_data[key] = value
+                end
             end
         end
         record["messageJson"] = parsed_data
@@ -18,49 +124,3 @@ function parse_message(tag, timestamp, record)
 
     return 2, timestamp, record
 end
-
-
--- if not _ENV then 
---     print("--- Ejecutando en modo de prueba ---")
-
---     local sample_record = {
---         ["@timestamp"] = "2025-05-30T07:59:51.700Z",
---         ["ProviderName"] = "Microsoft-Windows-Sysmon",
---         ["EventID"] = 10,
---         ["Message"] = "Process Create:\r\nRuleName: technique_id=T1018,technique_name=Remote System Discovery\r\nUtcTime: 2025-05-30 07:59:50.084\r\nProcessGuid: {3a93c15b-6576-6839-3109-000000000500}\r\nProcessId: 3872\r\nImage: C:\\Windows\\System32\\PING.EXE\r\nFileVersion: 10.0.17763.1 (WinBuild.160101.0800)\r\nDescription: TCP/IP Ping Command\r\nProduct: Microsoft® Windows® Operating System\r\nCompany: Microsoft Corporation\r\nOriginalFileName: ping.exe\r\nCommandLine: \"C:\\Windows\\system32\\PING.EXE\" theia-devenvironment.westeurope.cloudapp.azure.com\r\nCurrentDirectory: C:\\Users\\Administrator\\\r\nUser: WIN-FSE1B39DNO3\\Administrator\r\nLogonGuid: {3a93c15b-1930-6837-5748-050000000000}\r\nLogonId: 0x54857\r\nTerminalSessionId: 1\r\nIntegrityLevel: High\r\nHashes: SHA1=8757646428A176F76E6F38458A25902A8FEBA9C0,MD5=56633150D77AE242D07727B0564430BB,SHA256=741AD992403C78A8A7DBD97C74FDA06594A247E9E2FA05A40BB6945403A90056,IMPHASH=8C3BE1286CDAD6AC1136D0BB6C83FF41\r\nParentProcessGuid: {3a93c15b-2710-6838-7807-000000000500}\r\nParentProcessId: 4248\r\nParentImage: C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\r\nParentCommandLine: \"C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe\" \r\nParentUser: WIN-FSE1B39DNO3\\Administrator",
---     }
-
---     local original_record = {}
---     for k, v in pairs(sample_record) do
---         original_record[k] = v
---     end
-
---     local status, new_timestamp, modified_record = parse_message("winevtlog", "sample_timestamp", sample_record)
-
---     print("\n--- Registro Original ---")
---     for k, v in pairs(original_record) do
---         print("  " .. tostring(k) .. ": " .. tostring(v))
---     end
-
---     print("\n--- Registro Modificado ---")
---     if status == 2 then
---         print("  Status: OK")
---         for k, v in pairs(modified_record) do
---             if k == "Message" and type(v) == "table" then
---                 print("  Message (Parsed JSON): {")
---                 for sub_k, sub_v in pairs(v) do
---                     print("    " .. tostring(sub_k) .. ": \"" .. tostring(sub_v) .. "\"")
---                 end
---                 print("  }")
---             else
---                 print("  " .. tostring(k) .. ": " .. tostring(v))
---             end
---         end
---     else
---         print("  Status: Error (code " .. tostring(status) .. ")")
---         print("  Original record (not modified):")
---         for k, v in pairs(original_record) do
---             print("  " .. tostring(k) .. ": " .. tostring(v))
---         end
---     end
--- end
