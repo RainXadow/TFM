@@ -1,1 +1,4 @@
-New-ADUser -Name "test.user" -SamAccountName "test.user" -AccountPassword (ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force) -Enabled $true
+New-ADUser -Name "test.user" -SamAccountName "test.user" -AccountPassword (ConvertTo-SecureString "P@ssw0rd123!" -AsPlainText -Force) -Enabled $true #Event ID 4720 → A user account was created
+Remove-ADUser -Identity robb.stark -Confirm:$false  # Esto elimina al usuario robb.stark del AD sin pedir confirmación. Event ID 4726 → A user account was deleted
+Add-ADGroupMember -Identity "Domain Admins" -Members "jon.snow"  # Añadir jon.snow al grupo Domain Admins. Event ID 4728 → A member was added to a security-enabled global group.
+
